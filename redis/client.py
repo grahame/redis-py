@@ -233,7 +233,7 @@ class Redis(threading.local):
             raise PubSubError("Cannot issue commands other than SUBSCRIBE and "
                               "UNSUBSCRIBE while channels are open")
         try:
-            self.connection.send(command, self)
+            self.connection.send(bytes(command, self.encoding), self)
             if subscription_command:
                 return None
             return self.parse_response(command_name, **options)
@@ -257,6 +257,8 @@ class Redis(threading.local):
     def parse_response(self, command_name, catch_errors=False, **options):
         "Parses a response from the Redis server"
         response = self.connection.read_response(command_name, catch_errors)
+        if type(response) == bytes:
+            response = str(response, self.encoding)
         if command_name in self.RESPONSE_CALLBACKS:
             return self.RESPONSE_CALLBACKS[command_name](response, **options)
         return response

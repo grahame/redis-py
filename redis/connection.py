@@ -35,7 +35,7 @@ class BaseConnection(object):
             raise ConnectionError(error_message)
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         self._sock = sock
-        self._fp = sock.makefile('r')
+        self._fp = sock.makefile('rb')
         redis_instance._setup_connection()
 
     def disconnect(self):
@@ -79,10 +79,10 @@ class BaseConnection(object):
                 raise ConnectionError("Error while reading from socket: %s" % \
                     e.args[1])
         return ''
-
+1
 class PythonConnection(BaseConnection):
     def read_response(self, command_name, catch_errors):
-        response = self.read()[:-2] # strip last two characters (\r\n)
+        response = str(self.read()[:-2], 'utf-8') # strip last two characters (\r\n)
         if not response:
             self.disconnect()
             raise ConnectionError("Socket closed on remote end")
