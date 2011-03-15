@@ -2,7 +2,7 @@ import datetime
 import threading
 import time
 import warnings
-from itertools import chain, imap, islice, izip
+from itertools import chain, islice
 from redis.connection import ConnectionPool, Connection
 from redis.exceptions import (
     AuthenticationError,
@@ -24,7 +24,7 @@ def list_or_args(command, keys, args):
         i = iter(keys)
         # a string can be iterated, but indicates
         # keys wasn't passed as a list
-        if isinstance(keys, basestring):
+        if isinstance(keys, str):
             oldapi = True
     except TypeError:
         oldapi = True
@@ -83,7 +83,7 @@ def parse_info(response):
 
 def pairs_to_dict(response):
     "Create a dict given a list of key/value pairs"
-    return dict(izip(islice(response, None, None, 2),
+    return dict(zip(islice(response, None, None, 2),
                     islice(response, 1, None, 2)))
 
 def zset_score_pairs(response, **options):
@@ -93,8 +93,8 @@ def zset_score_pairs(response, **options):
     """
     if not response or not options['withscores']:
         return response
-    return list(izip(islice(response, None, None, 2),
-                     imap(float, islice(response, 1, None, 2))))
+    return list(zip(islice(response, None, None, 2),
+                     map(float, islice(response, 1, None, 2))))
 
 def int_or_none(response):
     if response is None:
@@ -137,7 +137,7 @@ class Redis(threading.local):
         string_keys_to_dict(
             # these return OK, or int if redis-server is >=1.3.4
             'LPUSH RPUSH',
-            lambda r: isinstance(r, long) and r or r == 'OK'
+            lambda r: isinstance(r, int) and r or r == 'OK'
             ),
         string_keys_to_dict('ZSCORE ZINCRBY', float_or_none),
         string_keys_to_dict(
@@ -247,7 +247,7 @@ class Redis(threading.local):
     def execute_command(self, *args, **options):
         "Sends the command to the redis server and returns it's response"
         cmds = ['$%s\r\n%s\r\n' % (len(enc_value), enc_value)
-                for enc_value in imap(self.encode, args)]
+                for enc_value in map(self.encode, args)]
         return self._execute_command(
             args[0],
             '*%s\r\n%s' % (len(cmds), ''.join(cmds)),
@@ -265,7 +265,7 @@ class Redis(threading.local):
         "Encode ``value`` using the instance's charset"
         if isinstance(value, str):
             return value
-        if isinstance(value, unicode):
+        if isinstance(value, str):
             return value.encode(self.encoding, self.errors)
         # not a string or unicode, attempt to convert to a string
         return str(value)
@@ -482,7 +482,7 @@ class Redis(threading.local):
     def mset(self, mapping):
         "Sets each key in the ``mapping`` dict to its corresponding value"
         items = []
-        for pair in mapping.iteritems():
+        for pair in mapping.items():
             items.extend(pair)
         return self.execute_command('MSET', *items)
 
@@ -492,7 +492,7 @@ class Redis(threading.local):
         none of the keys are already set
         """
         items = []
-        for pair in mapping.iteritems():
+        for pair in mapping.items():
             items.extend(pair)
         return self.execute_command('MSETNX', *items)
 
@@ -639,7 +639,7 @@ class Redis(threading.local):
         """
         if timeout is None:
             timeout = 0
-        if isinstance(keys, basestring):
+        if isinstance(keys, str):
             keys = [keys]
         else:
             keys = list(keys)
@@ -659,7 +659,7 @@ class Redis(threading.local):
         """
         if timeout is None:
             timeout = 0
-        if isinstance(keys, basestring):
+        if isinstance(keys, str):
             keys = [keys]
         else:
             keys = list(keys)
@@ -831,7 +831,7 @@ class Redis(threading.local):
             # Otherwise assume it's an interable and we want to get multiple
             # values. We can't just iterate blindly because strings are
             # iterable.
-            if isinstance(get, basestring):
+            if isinstance(get, str):
                 pieces.append('GET')
                 pieces.append(get)
             else:
@@ -1091,7 +1091,7 @@ class Redis(threading.local):
     def _zaggregate(self, command, dest, keys, aggregate=None):
         pieces = [command, dest, len(keys)]
         if isinstance(keys, dict):
-            items = keys.items()
+            items = list(keys.items())
             keys = [i[0] for i in items]
             weights = [i[1] for i in items]
         else:
@@ -1156,7 +1156,7 @@ class Redis(threading.local):
         items = []
         if len(mapping) == 0:
             raise DataError("'hmset' with 'mapping' of length 0")
-        for pair in mapping.iteritems():
+        for pair in mapping.items():
             items.extend(pair)
         return self.execute_command('HMSET', name, *items)
 
@@ -1172,7 +1172,7 @@ class Redis(threading.local):
     # channels
     def psubscribe(self, patterns):
         "Subscribe to all channels matching any pattern in ``patterns``"
-        if isinstance(patterns, basestring):
+        if isinstance(patterns, str):
             patterns = [patterns]
         response = self.execute_command('PSUBSCRIBE', *patterns)
         # this is *after* the SUBSCRIBE in order to allow for lazy and broken
@@ -1185,13 +1185,13 @@ class Redis(threading.local):
         Unsubscribe from any channel matching any pattern in ``patterns``.
         If empty, unsubscribe from all channels.
         """
-        if isinstance(patterns, basestring):
+        if isinstance(patterns, str):
             patterns = [patterns]
         return self.execute_command('PUNSUBSCRIBE', *patterns)
 
     def subscribe(self, channels):
         "Subscribe to ``channels``, waiting for messages to be published"
-        if isinstance(channels, basestring):
+        if isinstance(channels, str):
             channels = [channels]
         response = self.execute_command('SUBSCRIBE', *channels)
         # this is *after* the SUBSCRIBE in order to allow for lazy and broken
@@ -1204,7 +1204,7 @@ class Redis(threading.local):
         Unsubscribe from ``channels``. If empty, unsubscribe
         from all channels
         """
-        if isinstance(channels, basestring):
+        if isinstance(channels, str):
             channels = [channels]
         return self.execute_command('UNSUBSCRIBE', *channels)
 
@@ -1313,7 +1313,7 @@ class Pipeline(Redis):
                 "pipeline execution")
         # Run any callbacks for the commands run in the pipeline
         data = []
-        for r, cmd in izip(response, commands):
+        for r, cmd in zip(response, commands):
             if not isinstance(r, Exception):
                 if cmd[0] in self.RESPONSE_CALLBACKS:
                     r = self.RESPONSE_CALLBACKS[cmd[0]](r, **cmd[2])

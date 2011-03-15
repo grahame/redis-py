@@ -23,7 +23,7 @@ class BaseConnection(object):
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(self.socket_timeout)
             sock.connect((self.host, self.port))
-        except socket.error, e:
+        except socket.error as e:
             # args for socket.error can either be (errno, "message")
             # or just "message"
             if len(e.args) == 1:
@@ -54,7 +54,7 @@ class BaseConnection(object):
         self.connect(redis_instance)
         try:
             self._sock.sendall(command)
-        except socket.error, e:
+        except socket.error as e:
             if e.args[0] == errno.EPIPE:
                 self.disconnect()
             if len(e.args) == 1:
@@ -73,7 +73,7 @@ class BaseConnection(object):
             if length is not None:
                 return self._fp.read(length)
             return self._fp.readline()
-        except socket.error, e:
+        except socket.error as e:
             self.disconnect()
             if e.args and e.args[0] == errno.EAGAIN:
                 raise ConnectionError("Error while reading from socket: %s" % \
@@ -102,7 +102,7 @@ class PythonConnection(BaseConnection):
             return response
         # int value
         elif byte == ':':
-            return long(response)
+            return int(response)
         # bulk response
         elif byte == '$':
             length = int(response)
@@ -129,7 +129,7 @@ class PythonConnection(BaseConnection):
                         data.append(
                             self.read_response(command_name, catch_errors)
                             )
-                    except Exception, e:
+                    except Exception as e:
                         data.append(e)
                 return data
 
@@ -189,4 +189,4 @@ class ConnectionPool(threading.local):
 
     def get_all_connections(self):
         "Return a list of all connection objects the manager knows about"
-        return self.connections.values()
+        return list(self.connections.values())
