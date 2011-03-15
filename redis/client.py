@@ -259,6 +259,10 @@ class Redis(threading.local):
         response = self.connection.read_response(command_name, catch_errors)
         if type(response) == bytes:
             response = str(response, self.encoding)
+        if type(response) == list:
+            def fix_str(s):
+                return str(s, self.encoding)
+            response = list(map(fix_str, response))
         if command_name in self.RESPONSE_CALLBACKS:
             return self.RESPONSE_CALLBACKS[command_name](response, **options)
         return response
