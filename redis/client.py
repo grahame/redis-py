@@ -239,7 +239,7 @@ class Redis(threading.local):
             return self.parse_response(command_name, **options)
         except ConnectionError:
             self.connection.disconnect()
-            self.connection.send(command, self)
+            self.connection.send(bytes(command, self.encoding), self)
             if subscription_command:
                 return None
             return self.parse_response(command_name, **options)
@@ -257,12 +257,13 @@ class Redis(threading.local):
     def parse_response(self, command_name, catch_errors=False, **options):
         "Parses a response from the Redis server"
         response = self.connection.read_response(command_name, catch_errors)
-        if type(response) == bytes:
-            response = str(response, self.encoding)
-        if type(response) == list:
-            def fix_str(s):
-                return str(s, self.encoding)
-            response = list(map(fix_str, response))
+        def recurse_fix_str(r):
+            if type(r) == bytes:
+                return str(r, self.encoding)
+            if type(r) == list:
+                return list(map(recurse_fix_str, r))
+            return r
+        response = recurse_fix_str(response)
         if command_name in self.RESPONSE_CALLBACKS:
             return self.RESPONSE_CALLBACKS[command_name](response, **options)
         return response
@@ -1304,7 +1305,7 @@ class Pipeline(Redis):
             commands,
             (('', 'EXEC\r\n', ''),)
             )])
-        self.connection.send(all_cmds, self)
+        self.connection.send(bytes(all_cmds, self.encoding), self)
         # parse off the response for MULTI and all commands prior to EXEC
         for i in range(len(commands)+1):
             _ = self.parse_response('_')
@@ -1329,7 +1330,7 @@ class Pipeline(Redis):
     def _execute_pipeline(self, commands):
         # build up all commands into a single request to increase network perf
         all_cmds = ''.join([c for _1, c, _2 in commands])
-        self.connection.send(all_cmds, self)
+        self.connection.send(bytes(all_cmds, self.encoding), self)
         data = []
         for command_name, _, options in commands:
             data.append(
